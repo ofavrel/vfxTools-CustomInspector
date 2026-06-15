@@ -238,8 +238,9 @@ namespace VfxControl.EditorTools
                     ChipCounts = () => (0, 0, 0),
                 },
             };
-            // Increment 1: the Inspector hosts only the Properties tab (others grow in later passes).
-            if (_host.IsInspector) tabs.RemoveAll(t => t.Id != "props");
+            // Inspector tabs so far: Properties · Renderer · Debug. Playback (needs an inlined transport)
+            // and All (needs Playback) arrive in later increments.
+            if (_host.IsInspector) tabs.RemoveAll(t => t.Id == "all" || t.Id == "play");
             return tabs;
         }
 
