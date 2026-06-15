@@ -4,6 +4,11 @@ All notable changes to this package are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.1] - 2026-06-16
+### Added
+- Declared the `com.unity.visualeffectgraph` **17.6.0** dependency so Package Manager resolves VFX Graph
+  automatically when the package is installed (previously it was an undeclared, assumed prerequisite).
+
 ## [0.3.0] - 2026-06-16
 ### Added
 - **Custom inspector** for the `VisualEffect` component with the full toolset (Properties / Playback /
