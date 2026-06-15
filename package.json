@@ -1,0 +1,17 @@
+{
+  "name": "com.vfxtools.vfxcontrol",
+  "version": "0.1.0",
+  "displayName": "VFX Control",
+  "description": "A denser, more controllable custom inspector for Unity's Visual Effect component. This 0.1.0 is a scaffold + an inspector-priority probe; the full inspector follows.",
+  "unity": "6000.0",
+  "keywords": [
+    "vfx",
+    "visual effect",
+    "visualeffect",
+    "inspector",
+    "editor"
+  ],
+  "author": {
+    "name": "Orson Favrel"
+  }
+}
