@@ -14,7 +14,7 @@ using Object = UnityEngine.Object;
 
 namespace VfxControl.EditorTools
 {
-    public partial class VfxControlWindow : EditorWindow
+    public partial class VfxControl
     {
         // --- target ---
         private VisualEffect _effect;        // primary (drives display + property enumeration)
@@ -57,7 +57,16 @@ namespace VfxControl.EditorTools
             return null;
         }
 
-        private void RefreshTarget()
+        // Inspector host: drive the edited set straight from Editor.targets (no Selection / sticky logic).
+        public void SetTargets(IReadOnlyList<VisualEffect> targets)
+        {
+            if (targets == null || targets.Count == 0) { SetTarget(null, new List<VisualEffect>()); return; }
+            _selectionHint = null;
+            SetTarget(targets[0], new List<VisualEffect>(targets));
+        }
+
+        // Window host: resolve the edited set from the current scene selection (sticky).
+        public void RefreshTarget()
         {
             var effect = ResolveSelectedEffect(out var hint);
 
@@ -143,7 +152,7 @@ namespace VfxControl.EditorTools
             _collapsed = _state.LoadCollapsed();
             _constrained = _state.LoadConstrained();
             _tab = _state.Tab;
-            if (IsSolo) _tab = _soloTab; // a pop-out window is pinned to its one tab
+            if (IsSolo) _tab = _host.SoloTab; // a pop-out window is pinned to its one tab
             _filter = _state.Filter;
             _search = _state.Search;
             LoadSections();

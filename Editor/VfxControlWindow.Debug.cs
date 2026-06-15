@@ -18,7 +18,7 @@ using Object = UnityEngine.Object;
 
 namespace VfxControl.EditorTools
 {
-    public partial class VfxControlWindow : EditorWindow
+    public partial class VfxControl
     {
         // --- Debug tab live stat refs (rebuilt with the body; refreshed in place by UpdateLive) ---
         private Label _dbgAlive, _dbgAliveCap, _dbgEff, _dbgSystems, _dbgBounds, _dbgState;

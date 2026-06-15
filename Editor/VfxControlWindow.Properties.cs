@@ -17,7 +17,7 @@ using Object = UnityEngine.Object;
 
 namespace VfxControl.EditorTools
 {
-    public partial class VfxControlWindow : EditorWindow
+    public partial class VfxControl
     {
         // property name -> actions that re-read the value into each control showing it,
         // so a pinned card and its category row (etc.) stay in sync after any edit.

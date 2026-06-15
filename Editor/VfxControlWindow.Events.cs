@@ -18,7 +18,7 @@ using Object = UnityEngine.Object;
 
 namespace VfxControl.EditorTools
 {
-    public partial class VfxControlWindow : EditorWindow
+    public partial class VfxControl
     {
         // Favorite key for the whole Send Event section (it's an action surface, not a per-row
         // setting, so it pins as one unit into the Favorites group).

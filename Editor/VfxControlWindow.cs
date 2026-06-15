@@ -21,7 +21,7 @@ using Object = UnityEngine.Object;
 
 namespace VfxControl.EditorTools
 {
-    public partial class VfxControlWindow : EditorWindow
+    public partial class VfxControl
     {
         private const string UssPath = "Packages/com.vfxtools.vfxcontrol/Editor/VfxControl.uss";
         private const long kTickMs = 33; // ~30 fps clock (playback scrub + live stat refresh)
@@ -52,14 +52,12 @@ namespace VfxControl.EditorTools
         private Image _playIcon;
         private Slider _rateSlider; // Play Rate strip under the transport (resynced by UpdateLive)
 
-        // Tab tear-off: when set, this window shows ONLY that tab (the strip + Asset row + transport
-        // are hidden and _tab is pinned). [SerializeField] so each window keeps its OWN pinned tab
-        // across a domain reload / restart — a torn-off Renderer window must stay Renderer, not sync
-        // to the (shared, SessionState) main-window tab. Unity serializes a null string as "" and the
-        // main window never sets this, so every "is solo" test goes through IsSolo, which treats
-        // null/empty as a full window — that's what keeps the main window from coming back lean.
-        [SerializeField] private string _soloTab;
-        private bool IsSolo => !string.IsNullOrEmpty(_soloTab);
+        // The host (dockable window or custom Inspector) provides the root element + tear-off state.
+        // IsSolo (window tab tear-off) treats a null/empty SoloTab as a full window; the inspector host
+        // always reports null, so it is never "solo".
+        private readonly IVfxHost _host;
+        internal VfxControl(IVfxHost host) { _host = host; }
+        private bool IsSolo => !string.IsNullOrEmpty(_host.SoloTab);
         // persistent chrome containers: the search field is built ONCE (so typing never
         // loses focus); tabs/chips/rail/body are repopulated by PopulateActiveTab.
         private ToolbarSearchField _searchField;
@@ -89,71 +87,27 @@ namespace VfxControl.EditorTools
             public bool HasDot;
         }
 
-        [MenuItem("Window/VFX Control")]
-        public static void Open()
-        {
-            var w = GetWindow<VfxControlWindow>();
-            // If the focused instance is a torn-off (solo) pop-out, restore it to a full window so
-            // the menu always yields a complete inspector (the tab strip is otherwise hidden).
-            if (w.IsSolo) { w._soloTab = null; w.Rebuild(); }
-            w.titleContent = new GUIContent("VFX Control");
-            w.minSize = new Vector2(320, 360);
-            w.Show();
-        }
-
-        // Logs exactly where exposed-property enumeration succeeds or fails for the
-        // selected/target VFX. Run it, then share the Console output.
-        // NOTE: kept off the "Window/VFX Control" path — a MenuItem that is a prefix
-        // of another turns the shorter one into a submenu and hides its command.
-        [MenuItem("Tools/VFX Control/Diagnose Target")]
-        private static void Diagnose()
-        {
-            var go = Selection.activeGameObject;
-            var ve = go != null ? go.GetComponent<VisualEffect>() : Selection.activeObject as VisualEffect;
-            var asset = ve != null ? ve.visualEffectAsset : Selection.activeObject as VisualEffectAsset;
-
-            Debug.Log($"[VFX Control] Diagnose — component={(ve != null ? ve.name : "null")}, " +
-                      $"persistent={(ve != null && EditorUtility.IsPersistent(ve))}, " +
-                      $"asset={(asset != null ? asset.name : "null")}");
-            Debug.Log($"[VFX Control] Binding: {VfxGraphReflection.DescribeBindingState()}");
-
-            VfxGraphReflection.Verbose = true;
-            try
-            {
-                var ps = VfxGraphReflection.GetExposedParameters(asset);
-                Debug.Log($"[VFX Control] Enumerated {ps.Count} parameter(s): " +
-                          string.Join(", ", ps.Select(p => $"{p.Name}[{p.SheetType}/{p.RealType}] cat='{p.Category}'")));
-
-                var evts = VfxGraphReflection.GetEventNames(asset);
-                Debug.Log($"[VFX Control] Custom events ({evts.Count}): {string.Join(", ", evts)}");
-
-                var customs = VfxGraphReflection.GetCustomAttributes(asset);
-                Debug.Log($"[VFX Control] Custom attributes ({customs.Count}): " +
-                          string.Join(", ", customs.Select(c => $"{c.name}#{c.type}")));
-            }
-            finally { VfxGraphReflection.Verbose = false; }
-        }
-
-        private void OnEnable()
+        // Lifecycle, driven by the host (window/inspector). Enable wires the global editor hooks + the
+        // ~30fps clock; the host then sets the target (RefreshTarget for the window, SetTargets for the
+        // inspector) and calls Rebuild. Disable tears it all down. The Window ▸ VFX Control / Diagnose
+        // menu items live on the window host.
+        public void Enable()
         {
             _duration = VfxControlState.GetTimelineDuration();
             _loop = VfxControlState.GetLoop();
             _lastTick = EditorApplication.timeSinceStartup;
             LoadPayloads(); // restore per-asset payloads before SetTarget picks the active list
-            RefreshTarget();
             Undo.undoRedoPerformed += OnUndoRedo;
             EditorApplication.projectChanged += OnProjectChanged;
             SceneView.duringSceneGui += OnSceneGui;
-            rootVisualElement.schedule.Execute(Tick).Every(kTickMs); // ~30fps clock + live stats
-            Rebuild();
+            _host.Root.schedule.Execute(Tick).Every(kTickMs); // ~30fps clock + live stats
         }
 
-        private void OnDisable()
+        public void Disable()
         {
             StopProfiling(); // release the VFX profiling registration we requested for timing readouts
             _readback.Dispose(); // release the particle-readback GPU buffers
-            SavePayloads(); // OnDisable fires before a domain reload (and on close) — SessionState
-                            // carries the payloads across recompiles, but drops them on editor restart.
+            SavePayloads(); // fires before a domain reload (and on close); SessionState carries payloads
             Undo.undoRedoPerformed -= OnUndoRedo;
             EditorApplication.projectChanged -= OnProjectChanged;
             SceneView.duringSceneGui -= OnSceneGui;
@@ -170,7 +124,8 @@ namespace VfxControl.EditorTools
             Rebuild();
         }
 
-        private void OnSelectionChange()
+        // The window host forwards EditorWindow.OnSelectionChange here (the inspector is target-fixed).
+        public void HandleSelectionChange()
         {
             var prev = _effect;
             var prevHint = _selectionHint;
@@ -190,9 +145,9 @@ namespace VfxControl.EditorTools
 
         // ------------------------------------------------------------------ build
 
-        private void Rebuild()
+        public void Rebuild()
         {
-            var root = rootVisualElement;
+            var root = _host.Root;
             root.Clear();
             root.AddToClassList("vfx-root");
 
@@ -214,24 +169,27 @@ namespace VfxControl.EditorTools
             if (_so == null) SetTarget(_effect); // recover after a domain reload
             UpdateAllSos();
 
-            // Pop-out (solo) windows are lean: just header + chrome + rail + the one tab's body.
-            // The Asset field + transport bar are always BUILT (so they can never be stranded out of
-            // the tree) and merely hidden in solo mode — the transport stays the main window's job
-            // (see Tick, which doesn't advance the clock in a solo window).
-            var meta = BuildMetaSection();
-            var transport = BuildMiniTransport();
-            var gap = MakeElement("vfx-section-gap");   // the intentional divider
-            var leanDisplay = IsSolo ? DisplayStyle.None : DisplayStyle.Flex;
-            meta.style.display = transport.style.display = gap.style.display = leanDisplay;
-            root.Add(meta);
-            root.Add(transport);
-            root.Add(gap);
+            // Asset row + transport bar (the window's persistent chrome). The inspector host omits them
+            // (it's already on the component, and has no transport yet — added in a later increment).
+            // In the dockable window they're always BUILT (never stranded) and merely hidden in solo mode.
+            if (!_host.IsInspector)
+            {
+                var meta = BuildMetaSection();
+                var transport = BuildMiniTransport();
+                var gap = MakeElement("vfx-section-gap");   // the intentional divider
+                var leanDisplay = IsSolo ? DisplayStyle.None : DisplayStyle.Flex;
+                meta.style.display = transport.style.display = gap.style.display = leanDisplay;
+                root.Add(meta);
+                root.Add(transport);
+                root.Add(gap);
+            }
 
             // Persistent chrome: search + chips ABOVE the tabs (shared across tabs), then
             // the tab strip, the per-tab section rail, and the body. Only the search field
             // is built once; chips/tabs/rail/body are repopulated by PopulateActiveTab so
             // typing never detaches (and unfocuses) the search field.
             _tabDefs = BuildTabDefs();
+            if (_tabDefs.All(t => t.Id != _tab)) _tab = _tabDefs[0].Id; // keep the active tab valid (e.g. inspector = props only)
             BuildCategoryColorMap();        // rail dots + pinned cards need the color map
             root.Add(BuildChrome());        // search field + _chipsHost
 
@@ -259,25 +217,31 @@ namespace VfxControl.EditorTools
 
         // The ordered tab set. Counts/sections read live state, so this is rebuilt each
         // structural Rebuild (cheap). The "All" tab opts out of the rail (HasRail=false).
-        private List<TabDef> BuildTabDefs() => new List<TabDef>
+        private List<TabDef> BuildTabDefs()
         {
-            new TabDef { Id = "all", Label = "All", HasRail = false, Build = BuildAllTab, ChipCounts = AllChipCounts },
-            new TabDef
+            var tabs = new List<TabDef>
             {
-                Id = "props", Label = "Properties", Count = _params.Count(p => !p.IsStruct),
-                HasRail = true, Sections = PropertySections,
-                Build = body => { AddFavoriteGroup(body, includeProps: true, null); PopulateProperties(body); },
-                ChipCounts = PropertyChipCounts,
-            },
-            new TabDef { Id = "play", Label = "Playback", HasRail = true, Sections = PlaybackSections, Build = BuildPlaybackTab, ChipCounts = PlaybackChipCounts },
-            new TabDef { Id = "render", Label = "Renderer", HasRail = true, Sections = RendererSections, Build = BuildRendererTab, ChipCounts = RendererChipCounts },
-            new TabDef
-            {
-                Id = "debug", Label = "Debug", HasRail = true, Sections = DebugSections,
-                Build = BuildDebugTab,
-                ChipCounts = () => (0, 0, 0),
-            },
-        };
+                new TabDef { Id = "all", Label = "All", HasRail = false, Build = BuildAllTab, ChipCounts = AllChipCounts },
+                new TabDef
+                {
+                    Id = "props", Label = "Properties", Count = _params.Count(p => !p.IsStruct),
+                    HasRail = true, Sections = PropertySections,
+                    Build = body => { AddFavoriteGroup(body, includeProps: true, null); PopulateProperties(body); },
+                    ChipCounts = PropertyChipCounts,
+                },
+                new TabDef { Id = "play", Label = "Playback", HasRail = true, Sections = PlaybackSections, Build = BuildPlaybackTab, ChipCounts = PlaybackChipCounts },
+                new TabDef { Id = "render", Label = "Renderer", HasRail = true, Sections = RendererSections, Build = BuildRendererTab, ChipCounts = RendererChipCounts },
+                new TabDef
+                {
+                    Id = "debug", Label = "Debug", HasRail = true, Sections = DebugSections,
+                    Build = BuildDebugTab,
+                    ChipCounts = () => (0, 0, 0),
+                },
+            };
+            // Increment 1: the Inspector hosts only the Properties tab (others grow in later passes).
+            if (_host.IsInspector) tabs.RemoveAll(t => t.Id != "props");
+            return tabs;
+        }
 
         private (int leaf, int fav, int mod) PropertyChipCounts() => (
             _params.Count(p => !p.IsStruct),
@@ -463,7 +427,7 @@ namespace VfxControl.EditorTools
             // for "All" (a solo All would host the Debug shortcut whose jump has no strip to land on).
             if (id != "all")
                 tab.AddManipulator(new ContextualMenuManipulator(evt =>
-                    evt.menu.AppendAction("Open in new window", _ => OpenSolo(id, label))));
+                    evt.menu.AppendAction("Open in new window", _ => _host.OpenSolo(id, label))));
             tab.RegisterCallback<ClickEvent>(e =>
             {
                 if (e.altKey)
@@ -487,18 +451,12 @@ namespace VfxControl.EditorTools
             return tab;
         }
 
-        // Open the given tab in its own dockable VfxControlWindow ("solo" mode): a distinct
-        // instance pinned to one tab, following scene selection like the main window. Per-asset
-        // state (favorites/collapsed/payloads) is shared via EditorPrefs/SessionState.
-        private static void OpenSolo(string tabId, string label)
+        // Pin to the host's solo tab (if any) and rebuild — the window host calls this after a tear-off
+        // so the new pop-out renders pinned to its one tab.
+        public void ApplyHostTabAndRebuild()
         {
-            var w = CreateWindow<VfxControlWindow>();
-            w._soloTab = tabId;
-            w._tab = tabId; // OnEnable already ran (non-solo); pin then re-render in solo mode
-            w.titleContent = new GUIContent("VFX · " + label);
-            w.minSize = new Vector2(300, 300);
-            w.Show();
-            w.Rebuild();
+            if (IsSolo) _tab = _host.SoloTab;
+            Rebuild();
         }
 
         // ------------------------------------------------------------------ properties tab
@@ -949,7 +907,7 @@ namespace VfxControl.EditorTools
 
             // Only the main window drives the playback clock; a transport-less pop-out just
             // observes (otherwise multiple windows would fight over Reinit/pause on the shared effect).
-            if (!IsSolo && _effect != null && !_effect.pause && _duration > 0f)
+            if (!IsSolo && !_host.IsInspector && _effect != null && !_effect.pause && _duration > 0f)
             {
                 float rate = _effect.playRate <= 0f ? 1f : _effect.playRate;
                 _scrubT += dt * rate / _duration;

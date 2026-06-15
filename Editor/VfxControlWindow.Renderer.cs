@@ -19,7 +19,7 @@ using Object = UnityEngine.Object;
 
 namespace VfxControl.EditorTools
 {
-    public partial class VfxControlWindow : EditorWindow
+    public partial class VfxControl
     {
         // ------------------------------------------------------------------ renderer tab
 
@@ -218,7 +218,7 @@ namespace VfxControl.EditorTools
 
         // Rebuild the active tab body on the next tick (used when a value change toggles which
         // other rows are available, e.g. probe usage → Anchor/Proxy visibility).
-        private void DeferRebuildBody() => rootVisualElement.schedule.Execute(RebuildBodyOnly);
+        private void DeferRebuildBody() => _host.Root.schedule.Execute(RebuildBodyOnly);
 
         // EnumField over an int-backed serialized property (m_*ProbeUsage). Manual write
         // (intValue + Apply) because BindProperty(EnumField) doesn't persist an int property.

@@ -17,7 +17,7 @@ using Object = UnityEngine.Object;
 
 namespace VfxControl.EditorTools
 {
-    public partial class VfxControlWindow : EditorWindow
+    public partial class VfxControl
     {
         // scene-view edit gizmo (custom Handles) for spaceable Position/Direction/Box
         private VfxExposedParam _gizmoStruct;

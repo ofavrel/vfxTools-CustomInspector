@@ -17,7 +17,7 @@ using Object = UnityEngine.Object;
 
 namespace VfxControl.EditorTools
 {
-    public partial class VfxControlWindow : EditorWindow
+    public partial class VfxControl
     {
         // configurable timeline/scrub window length (Playback tab); the play clock
         // fills the bar over this many seconds and then loops (or stops, if _loop is off).
