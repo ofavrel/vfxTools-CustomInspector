@@ -155,7 +155,9 @@ namespace VfxControl.EditorTools
             if (uss != null && !root.styleSheets.Contains(uss))
                 root.styleSheets.Add(uss);
 
-            root.Add(BuildHeader());
+            // The window needs its own title/instance header; the inspector already has the component
+            // header above it, so skip the redundant "VFX Control / <instance>" header there.
+            if (!_host.IsInspector) root.Add(BuildHeader());
 
             if (_effect == null)
             {
