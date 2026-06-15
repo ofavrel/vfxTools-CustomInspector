@@ -100,7 +100,11 @@ namespace VfxControl.EditorTools
             Undo.undoRedoPerformed += OnUndoRedo;
             EditorApplication.projectChanged += OnProjectChanged;
             SceneView.duringSceneGui += OnSceneGui;
-            _host.Root.schedule.Execute(Tick).Every(kTickMs); // ~30fps clock + live stats
+            // Use the global editor heartbeat, not the panel scheduler: an unfocused PropertyEditor
+            // popup (e.g. a solo Debug tab while you work in the Scene view) throttles its panel updates,
+            // which starved the readback Pump + live refresh. EditorApplication.update fires regardless
+            // of focus; Tick self-gates to ~kTickMs.
+            EditorApplication.update += Tick;
         }
 
         public void Disable()
@@ -111,6 +115,7 @@ namespace VfxControl.EditorTools
             Undo.undoRedoPerformed -= OnUndoRedo;
             EditorApplication.projectChanged -= OnProjectChanged;
             SceneView.duringSceneGui -= OnSceneGui;
+            EditorApplication.update -= Tick;
         }
 
         // Fired after assets are imported (e.g. a .vfx recompiled + saved). The graph
@@ -914,6 +919,7 @@ namespace VfxControl.EditorTools
         private void Tick()
         {
             double now = EditorApplication.timeSinceStartup;
+            if (now - _lastTick < kTickMs / 1000.0) return; // ~30fps gate (EditorApplication.update can fire faster)
             float dt = Mathf.Min((float)(now - _lastTick), 0.1f); // clamp so idle gaps don't jump
             _lastTick = now;
 
