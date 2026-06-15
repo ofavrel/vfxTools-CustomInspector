@@ -1,8 +1,8 @@
 {
   "name": "com.vfxtools.vfxcontrol",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "displayName": "VFX Control",
-  "description": "A denser, more controllable custom inspector for Unity's Visual Effect component. This 0.1.0 is a scaffold + an inspector-priority probe; the full inspector follows.",
+  "description": "A denser, more controllable editor for Unity's Visual Effect component: a dockable VFX Control window (Properties/Playback/Debug/Renderer tabs, scene gizmos, per-particle readback + CSV export). Open via Window ▸ VFX Control. A custom-inspector variant is in progress on a separate branch.",
   "unity": "6000.0",
   "keywords": [
     "vfx",
