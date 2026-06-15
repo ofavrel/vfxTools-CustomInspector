@@ -176,9 +176,14 @@ namespace VfxControl.EditorTools
             // always BUILT (never stranded) and merely hidden in solo mode.
             if (_host.IsInspector)
             {
-                root.Add(BuildMetaSection());                 // the .vfx Asset field
-                root.Add(BuildMiniTransport());               // persistent transport (always visible)
-                root.Add(MakeElement("vfx-section-gap"));
+                // A per-tab popup (IsSolo) is lean — just the one tab body (PopulateTabs hides the strip);
+                // the full inspector shows the Asset field + persistent transport.
+                if (!IsSolo)
+                {
+                    root.Add(BuildMetaSection());             // the .vfx Asset field
+                    root.Add(BuildMiniTransport());           // persistent transport (always visible)
+                    root.Add(MakeElement("vfx-section-gap"));
+                }
             }
             else
             {
