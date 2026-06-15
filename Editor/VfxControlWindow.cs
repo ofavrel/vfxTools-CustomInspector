@@ -176,7 +176,9 @@ namespace VfxControl.EditorTools
             // always BUILT (never stranded) and merely hidden in solo mode.
             if (_host.IsInspector)
             {
-                root.Add(BuildMetaSection()); // the .vfx Asset field
+                root.Add(BuildMetaSection());                 // the .vfx Asset field
+                root.Add(BuildMiniTransport());               // persistent transport (always visible)
+                root.Add(MakeElement("vfx-section-gap"));
             }
             else
             {
@@ -244,9 +246,7 @@ namespace VfxControl.EditorTools
                     ChipCounts = () => (0, 0, 0),
                 },
             };
-            // Inspector tabs so far: Properties · Renderer · Debug. Playback (needs an inlined transport)
-            // and All (needs Playback) arrive in later increments.
-            if (_host.IsInspector) tabs.RemoveAll(t => t.Id == "all" || t.Id == "play");
+            // Both hosts now show the full tab set (the inspector has a persistent transport for Playback).
             return tabs;
         }
 
@@ -912,9 +912,9 @@ namespace VfxControl.EditorTools
             float dt = Mathf.Min((float)(now - _lastTick), 0.1f); // clamp so idle gaps don't jump
             _lastTick = now;
 
-            // Only the main window drives the playback clock; a transport-less pop-out just
-            // observes (otherwise multiple windows would fight over Reinit/pause on the shared effect).
-            if (!IsSolo && !_host.IsInspector && _effect != null && !_effect.pause && _duration > 0f)
+            // Full hosts (window + inspector, both with a transport) drive the playback clock; a
+            // transport-less solo pop-out just observes (so multiple hosts don't fight over Reinit/pause).
+            if (!IsSolo && _effect != null && !_effect.pause && _duration > 0f)
             {
                 float rate = _effect.playRate <= 0f ? 1f : _effect.playRate;
                 _scrubT += dt * rate / _duration;
