@@ -56,6 +56,9 @@ namespace VfxInspector.EditorTools
         // VFX Graph package update, audit THIS region: the namespace/assembly, the type short-name
         // T_* consts, and the `s_*` handle declarations whose comments name each member + signature.
         // s_PackageVersion (vs AuthoredAgainstVersion) is logged on a binding failure to flag drift.
+        // NOTE: member names can drift even WITHIN one version string — e.g. the resource→graph
+        // accessor went GetOrCreateGraph → GetGraph between Unity 6000.6.0a2 and a7, both "17.6.0".
+        // Prefer matching by name+arity+signature with fallbacks over a single exact name.
         private const string VfxNs = "UnityEditor.VFX.";          // namespace of every editor-internal VFX type
         private const string VfxAsm = "Unity.VisualEffectGraph.Editor"; // assembly they live in
         private const string T_ParameterInfo = "VFXParameterInfo"; // resolved both assembly-qualified + by scan
@@ -66,7 +69,7 @@ namespace VfxInspector.EditorTools
         private static bool s_Resolved;
         private static bool s_Available;
         private static MethodInfo s_GetResource;       // static VisualEffectResource GetResource(VisualEffectObject)
-        private static MethodInfo s_GetOrCreateGraph;  // static VFXGraph GetOrCreateGraph(VisualEffectResource)
+        private static MethodInfo s_GetOrCreateGraph;  // static VFXGraph GetOrCreateGraph|GetGraph(VisualEffectResource) — renamed within 17.6.0 (a2→a7)
         private static FieldInfo s_ParameterInfoField; // VFXParameterInfo[] VFXGraph.m_ParameterInfo
         private static MethodInfo s_BuildParameterInfo; // void VFXGraph.BuildParameterInfo()
 
@@ -186,11 +189,19 @@ namespace VfxInspector.EditorTools
                                          m.GetParameters().Length == 1 &&
                                          m.GetParameters()[0].ParameterType.IsAssignableFrom(typeof(VisualEffectAsset)));
 
-                s_GetOrCreateGraph = asm.GetTypes()
+                // The resource→graph accessor was renamed within the 17.6.0 line:
+                // VisualEffectResourceExtensions.GetOrCreateGraph (≤6000.6.0a2) → GetGraph
+                // (a7+). Accept either — static, one VisualEffectResource arg, returns VFXGraph —
+                // preferring the legacy name. The param-type guard keeps an unrelated 1-arg
+                // GetGraph returning VFXGraph from being mismatched. Missing it → s_Available
+                // false → zero properties + a blank Debug tab + broken readback id steering.
+                MethodInfo FindGraphGetter(string name) => asm.GetTypes()
                     .SelectMany(t => t.GetMethods(pubStatic))
-                    .FirstOrDefault(m => m.Name == "GetOrCreateGraph" &&
+                    .FirstOrDefault(m => m.Name == name &&
+                                         m.ReturnType == graphType &&
                                          m.GetParameters().Length == 1 &&
-                                         m.ReturnType == graphType);
+                                         m.GetParameters()[0].ParameterType.Name == "VisualEffectResource");
+                s_GetOrCreateGraph = FindGraphGetter("GetOrCreateGraph") ?? FindGraphGetter("GetGraph");
 
                 s_ParameterInfoField = graphType.GetField("m_ParameterInfo", any);
                 // Use LINQ rather than GetMethod(..., Type.EmptyTypes, ...): the latter

@@ -120,10 +120,13 @@ binding failure logs it next to `AuthoredAgainstVersion` (`VersionNote()`), and
 handle so it's clear exactly what failed to resolve.
 
 - **Exposed properties** come from `VFXGraph.m_ParameterInfo` (`VFXParameterInfo[]`),
-  reached via `VisualEffectAsset.GetResource()` → `.GetOrCreateGraph()`
+  reached via `VisualEffectAsset.GetResource()` → `.GetOrCreateGraph()` / `.GetGraph()`
   (extension methods in `VisualEffectResourceExtensions`, *in* the package assembly;
-  `GetOrCreateGraph` matched by name + arity + return type == `VFXGraph` — do NOT try to
-  resolve `VisualEffectResource`, it's a built-in type and the lookup will fail/empty).
+  matched by name + arity + return type == `VFXGraph` — **the accessor was renamed
+  `GetOrCreateGraph` → `GetGraph` within the 17.6.0 line (Unity 6000.6.0a2 → a7), so the
+  bridge tries both names** (preferring the legacy one). Do NOT try to resolve
+  `VisualEffectResource` as a package type — it's built-in and the lookup will fail/empty;
+  the param is matched only by short name `"VisualEffectResource"`.)
   Match `BuildParameterInfo()` (parameterless) and `VFXSerializableObject.Get()` with a
   LINQ "non-generic, zero-arg" lookup — `Type.GetMethod(..., Type.EmptyTypes)` throws
   `AmbiguousMatchException` on `Get()` vs `Get<T>()`.
