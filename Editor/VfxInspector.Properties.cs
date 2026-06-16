@@ -54,11 +54,16 @@ namespace VfxInspector.EditorTools
 
             bool forceOpen = !string.IsNullOrEmpty(_search.Trim());
 
-            // group all entries (structs + leaves) by category, preserving graph order
+            // group all entries (structs + leaves) by category, preserving graph order. The readback
+            // ReadbackInstanceId property is instrumentation plumbing (the inspector drives it) — hide its
+            // whole subtree so it doesn't take space or spawn an "Uncategorized" group.
             var ordered = new List<string>();
             var byCat = new Dictionary<string, List<VfxExposedParam>>();
+            bool hiding = false; int hideDepth = 0;
             foreach (var p in _params)
             {
+                if (hiding) { if (p.Depth > hideDepth) continue; hiding = false; }
+                if (p.RealType == nameof(ReadbackInstanceId)) { hiding = true; hideDepth = p.Depth; continue; }
                 var cat = CategoryOf(p);
                 if (!byCat.TryGetValue(cat, out var list)) { byCat[cat] = list = new List<VfxExposedParam>(); ordered.Add(cat); }
                 list.Add(p);

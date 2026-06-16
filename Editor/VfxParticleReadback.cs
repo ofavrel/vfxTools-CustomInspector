@@ -23,8 +23,8 @@ namespace VfxInspector.EditorTools
     // Opt-in per-particle attribute spreadsheet + scene overlay. See Readback/VfxReadback.hlsl.
     // The graph is instrumented (Custom HLSL block, one `instanceId` input) so each particle writes
     // its record into a STABLE slot = instanceId*256 + particleId%256, plus a per-frame generation
-    // stamp. The window auto-assigns each SELECTED VisualEffect a distinct instanceId via SetInt on
-    // the exposed `VfxReadbackInstanceId` property (if wired), so instances land in separate regions.
+    // stamp. The inspector auto-assigns each SELECTED VisualEffect a distinct instanceId by writing the
+    // wired ReadbackInstanceId property (matched by type, any name), so instances land in separate regions.
     // We bump the generation each frame, AsyncGPUReadback the gen+data buffers, and show the slots
     // stamped with the latest generation present (= live particles this frame), grouped by instance.
     internal sealed class VfxParticleReadback : IDisposable
@@ -45,7 +45,10 @@ namespace VfxInspector.EditorTools
         private static int InstanceOf(int slot) => (slot / kReadbackPerInstance) % kReadbackMaxInstances;
         private static int ParticleIdOf(int slot) => slot % kReadbackPerInstance;
         private static int CountBits(int m) { int c = 0; while (m != 0) { m &= m - 1; c++; } return c; }
-        private const string kReadbackInstanceProp = "VfxReadbackInstanceId"; // exposed Int the user wires to the block
+        // The per-instance id property is matched BY TYPE (the ReadbackInstanceId [VFXType]), not by a
+        // fixed name — so the user names the blackboard property anything and just wires it to the block.
+        // This is the RealType VfxGraphReflection reports for that property.
+        private static readonly string kReadbackInstanceType = nameof(ReadbackInstanceId);
         private static readonly int kReadbackBufferId = Shader.PropertyToID("_VfxReadbackBuffer");
         private static readonly int kReadbackGenId = Shader.PropertyToID("_VfxReadbackGen");
         private static readonly int kReadbackGenerationId = Shader.PropertyToID("_VfxReadbackGeneration");
@@ -245,9 +248,9 @@ namespace VfxInspector.EditorTools
             _readbackHelp.Add(new Label(
                 "No readback data. Add the \"Debug Readback\" subgraph block (from this package's Readback/ " +
                 "folder) to the system's Update or Output context — or, manually, a Custom HLSL block (function " +
-                "VfxReadback) pointing at Packages/com.vfxtools.vfxinspector/Readback/VfxReadback.hlsl. For " +
-                "separate per-instance rows, expose an Int property named VfxReadbackInstanceId and wire it to " +
-                "the block's instanceId input (the inspector auto-assigns ids). To debug several systems at once, " +
+                "VfxReadback) pointing at Packages/com.vfxtools.vfxinspector/Readback/VfxReadback.hlsl. To " +
+                "separate per-instance rows, add a \"Readback Instance Id\" property (Blackboard +) and wire it " +
+                "to the block (the inspector assigns ids automatically). To debug several systems at once, " +
                 "put a block in each system and wire each block's systemId to a distinct constant per the legend. " +
                 "Only public APIs — see the docs."));
             host.Add(_readbackHelp);
@@ -572,13 +575,12 @@ namespace VfxInspector.EditorTools
             }
         }
 
-        // Only the SELECTED instances (_all) get readable ids 0..K-1 via the exposed
-        // `VfxReadbackInstanceId` Int — every other VisualEffect of the asset is pushed out of range
-        // (id == kReadbackMaxInstances) so the instrumented block skips it and it never pollutes the
-        // regions we read. Select one effect → see only it; select two → see both. SetInt persists, so
-        // this is throttled (~2 Hz; forced to re-run on selection change via _lastInstanceAssign = 0).
-        // Stable id per effect by GetEntityId. Components without the property wired (HasInt false) can't
-        // be steered — they fall back to the port default (0); wire the property for the selection filter.
+        // Only the SELECTED instances (_all) get readable ids 0..K-1 via the wired ReadbackInstanceId
+        // property — every other VisualEffect is pushed out of range (id == kReadbackMaxInstances) so the
+        // instrumented block skips it and it never pollutes the regions we read. Select one effect → see
+        // only it; select two → see both. The write persists, so this is throttled (~2 Hz; forced to
+        // re-run on selection change via _lastInstanceAssign = 0). Stable id per effect by GetEntityId.
+        // Components without the property wired can't be steered — they fall back to the port default (0).
         private void AssignReadbackInstanceIds()
         {
             double now = EditorApplication.timeSinceStartup;
@@ -605,12 +607,42 @@ namespace VfxInspector.EditorTools
             // Steer EVERY instrumented instance in the scene (any asset, not just the current one): the
             // readback buffer is a scene-global resource, so a different asset's instance left at a low id
             // would keep writing into the regions we read and mix into the list. Selected → its id;
-            // everything else (including other assets) → out of range so its block skips the write.
+            // everything else (including other assets) → out of range so its block skips the write. The id
+            // property is resolved per-asset BY TYPE (any name), cached for this pass.
+            var propByAsset = new Dictionary<VisualEffectAsset, List<string>>();
             foreach (var v in Object.FindObjectsByType<VisualEffect>(FindObjectsInactive.Exclude))
             {
-                if (v == null || !v.HasInt(kReadbackInstanceProp)) continue;
-                v.SetInt(kReadbackInstanceProp, idOf.TryGetValue(v, out var id) ? id : kReadbackMaxInstances);
+                if (v == null || v.visualEffectAsset == null) continue;
+                if (!propByAsset.TryGetValue(v.visualEffectAsset, out var cands))
+                    propByAsset[v.visualEffectAsset] = cands = ResolveInstanceIdNames(v.visualEffectAsset);
+                if (cands.Count == 0) continue; // not instrumented with a ReadbackInstanceId property
+                int id = idOf.TryGetValue(v, out var k) ? k : kReadbackMaxInstances;
+                foreach (var name in cands)
+                {
+                    if (v.HasUInt(name)) { v.SetUInt(name, (uint)id); break; }
+                    if (v.HasInt(name))  { v.SetInt(name, id);        break; }
+                }
             }
+        }
+
+        // Candidate runtime property names for the exposed ReadbackInstanceId property (matched by TYPE).
+        // VFX flattens a struct property into a settable scalar leaf; we return the leaf's name first, then
+        // common fallbacks, and AssignReadbackInstanceIds probes Has{U}Int to pick the one that resolves.
+        private static List<string> ResolveInstanceIdNames(VisualEffectAsset asset)
+        {
+            var names = new List<string>();
+            if (asset == null) return names;
+            var ps = VfxGraphReflection.GetExposedParameters(asset);
+            for (int i = 0; i < ps.Count; i++)
+            {
+                if (ps[i].RealType != kReadbackInstanceType) continue;
+                for (int j = i + 1; j < ps.Count && ps[j].Depth > ps[i].Depth; j++)
+                    if (!ps[j].IsStruct) { names.Add(ps[j].Name); break; } // the scalar Id leaf
+                names.Add(ps[i].Name + "_Id"); // fallbacks if the enumerator didn't expand the leaf
+                names.Add(ps[i].Name);
+                break;
+            }
+            return names;
         }
 
         // Driven by Tick: bump the generation, keep the globals bound while the window is open, and

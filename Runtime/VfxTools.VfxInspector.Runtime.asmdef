@@ -1,12 +1,10 @@
 {
-    "name": "VfxTools.VfxInspector.Editor",
-    "rootNamespace": "VfxInspector.EditorTools",
+    "name": "VfxTools.VfxInspector.Runtime",
+    "rootNamespace": "VfxInspector",
     "references": [
-        "VfxTools.VfxInspector.Runtime"
+        "Unity.VisualEffectGraph.Runtime"
     ],
-    "includePlatforms": [
-        "Editor"
-    ],
+    "includePlatforms": [],
     "excludePlatforms": [],
     "allowUnsafeCode": false,
     "overrideReferences": false,

@@ -545,11 +545,12 @@ Sphere/Circle/Torus variants work with no extra code).
     in World until the .vfx was re-saved). `GetSystemAttributeLayout` is used only for the column set
     (with a default-column fallback when empty). So the overlay/Alt-click framing are
     correct for mixed-space multi-system graphs. **Per-instance
-    separation, SELECTED-only:** the user exposes an Int property named `VfxReadbackInstanceId` and wires
-    it to the block's `instanceId` input; `AssignReadbackInstanceIds` (~2 Hz — `SetInt` persists; forced
-    on selection change) gives the **selected** instances (`_effects`, sorted by `GetEntityId()`) ids
-    0..K-1, and `SetInt`s every *other* instrumented instance **in the scene (any asset, not just this
-    one)** to `kReadbackMaxInstances` (out of range, so the block skips it) — select one effect → see only
+    separation, SELECTED-only:** the user adds a `ReadbackInstanceId` [VFXType] blackboard property (any
+    name) and wires it to the Debug Readback block; `AssignReadbackInstanceIds` (~2 Hz — the write persists;
+    forced on selection change) resolves that property **by type** per asset (`ResolveInstanceIdNames` →
+    RealType `ReadbackInstanceId`, probing `HasUInt`/`HasInt`), gives the **selected** instances (`_effects`,
+    sorted by `GetEntityId()`) ids 0..K-1, and sets every *other* instrumented instance **in the scene (any
+    asset, not just this one)** to `kReadbackMaxInstances` (out of range, so the block skips it) — select one effect → see only
     it, select two → see both. Steering all assets (not just the current one) is what prevents a
     previously-selected *different* asset's instances from leaking into the list (the buffer is a
     scene-global resource). On an asset switch `PumpReadback` also wipes the gen buffer + decoded caches

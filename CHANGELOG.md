@@ -9,7 +9,13 @@ All notable changes to this package are documented here. The format follows
 - A ready-made **"Debug Readback" subgraph block** (`Readback/Debug Readback.vfxblock`) that wraps the
   Custom HLSL readback function. Drag it into a system's Update or Output context instead of wiring a
   Custom HLSL block by hand — the manual route still works for full control.
+- A **`ReadbackInstanceId` [VFXType]** (new `Runtime/` assembly) for the multi-instance case: add a
+  "Readback Instance Id" property from the blackboard and wire it to the block — no magic name to type.
+  The inspector finds it **by type** (any name) and **hides it** from the Properties tab.
 ### Changed
+- Per-instance readback id is now matched **by type** (`ReadbackInstanceId`) instead of requiring an
+  exposed Int named `VfxReadbackInstanceId`; the inspector sets it via `SetUInt`/`SetInt`. **Breaking** for
+  graphs wired the old way — re-wire with the new typed property.
 - Readback in-panel help + README now point at the subgraph block as the primary path.
 
 ## [0.3.1] - 2026-06-16

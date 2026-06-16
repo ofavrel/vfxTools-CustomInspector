@@ -6,9 +6,10 @@
 // particle birth, so the list would be empty on frames with no spawn.
 //
 // MULTI-INSTANCE: the function takes an `instanceId` input port. To capture several VisualEffect
-// instances of the asset separately, add an **exposed Int property named `VfxReadbackInstanceId`** to
-// the graph and wire it into the block's `instanceId` input — the VFX Inspector auto-assigns each
-// selected instance a distinct id via `SetInt`. Unwired → id 0 (single merged instance).
+// instances of the asset separately, add a **"Readback Instance Id" blackboard property** (the
+// ReadbackInstanceId [VFXType]) and wire it to the "Debug Readback" subgraph block — the VFX Inspector
+// finds it by type and assigns each selected instance a distinct id. Unwired → id 0 (single merged
+// instance). (The Custom HLSL `instanceId` param stays `int`; the subgraph feeds it the struct's Id.)
 //
 // MULTI-SYSTEM: the function also takes a `systemId` input port. To debug several systems of one graph
 // at once, put a VfxReadback block in EACH system and wire each block's `systemId` to a distinct
