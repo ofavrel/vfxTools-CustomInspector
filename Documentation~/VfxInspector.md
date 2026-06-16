@@ -291,7 +291,10 @@ name for display, bold/`<b>` when used as a header), `SheetType`, `RealType`, `C
 
 ## Scene-view gizmos (custom — VFX's own are internal & unusable)
 
-`SceneView.duringSceneGui`. An "edit in Scene" toggle on spaceable struct headers
+`SceneView.duringSceneGui` → `OnSceneGui`, a uniform dispatcher: after drawing the bounds
+visualizer + readback overlay it `switch`es `_gizmoType` to a per-type
+`DrawXGizmo(leaves, t, local)` method (Position/Direction/Vector/AABox and the Line/Box/Plane/shape
+gizmos are all peers). An "edit in Scene" toggle on spaceable struct headers
 (`IsGizmoSupported`: Position, DirectionType, Vector, AABox, Line, Plane + the shape set
 `s_ShapeGizmoTypes` = **TCone/TArcCone, TSphere/TArcSphere, TCircle/TArcCircle,
 TTorus/TArcTorus, OrientedBox, Transform** — note `realType` is the C# struct name, so
@@ -299,7 +302,11 @@ shapes carry the `T` prefix; the shape set is additionally gated on `p.Spaceable
 the inner shape/`transform` nested in another type, which carries no space — see
 [[vfx-cone-arccone-layout]]).
 Activating unfolds the card (restored to prior fold state on deactivate). State:
-`_gizmoStruct` + `_structLeaves`. All four shapes share helpers: `DrawSpaceTransformHandle`
+`_gizmoStruct` + `_structLeaves`. The four shape gizmos (Cone/Sphere/Circle/Torus) share their
+identical setup via **`BeginShapeGizmo`** → a `ShapeFrame` (the shape's world TRS `Matrix` + arc
+state): it reads the common position/angle/scale leaves (+ the degenerate-scale guard), runs the
+transform handle, and reads the arc — each caller then reads only its own radius leaves and draws its
+geometry/handles/label. They also share helpers: `DrawSpaceTransformHandle`
 (tool-aware move/rotate/scale in the base frame), `RadialRadiusHandle` (radial cube
 slider) and its commit wrapper `RadiusHandleCommit(leaf, …)` (draws the slider, writes the
 new radius to `leaf` if it moved, returns it — sphere/circle/torus reuse the return, cone
