@@ -34,5 +34,10 @@ subgraph block** (in this package's `Readback/` folder) to a system's Update or 
 full control, a Custom HLSL block pointing at `Readback/VfxReadback.hlsl`. See the in-panel help and the
 architecture notes in `Documentation~/VfxInspector.md`.
 
+## Documentation
+- 📖 **[User Guide](Documentation~/UserGuide.md)** — task-based walkthrough of every feature ("I want to…").
+- 🏗️ **[Architecture & Code Overview](OVERVIEW.md)** — how the package is built (for contributors).
+- 📝 **[Project context / ground truth](Documentation~/VfxInspector.md)** — exhaustive developer notes.
+
 ## License
 MIT — see [LICENSE.md](LICENSE.md).
