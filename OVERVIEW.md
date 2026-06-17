@@ -85,7 +85,7 @@ graph TD
 
     ED -->|references| RT
     TS -->|references + InternalsVisibleTo| ED
-    ED -.->|reflection only<br/>(never a compile ref)| VFXED["Unity.VisualEffectGraph.Editor<br/>(internal types)"]
+    ED -.->|reflection only — never a compile ref| VFXED["Unity.VisualEffectGraph.Editor<br/>(internal types)"]
     ED -->|compile ref| BUILTIN["UnityEngine.VFXModule + CoreModule<br/>(VisualEffect / VisualEffectAsset /<br/>VFXRenderer / VFXEventAttribute)"]
     RT -->|references| VFXRT["Unity.VisualEffectGraph.Runtime"]
     ED -.->|loads at runtime| RB
@@ -185,7 +185,7 @@ sequenceDiagram
     Note over C: wires Undo, projectChanged,<br/>SceneView.duringSceneGui, EditorApplication.update
     E->>C: SetTargets(targets) · Rebuild()
     C->>R: GetExposedParameters(asset)
-    R-->>C: List&lt;VfxExposedParam&gt; (reflection)
+    R-->>C: VfxExposedParam list (via reflection)
     C->>C: build chrome → tabs → rail → body (PopulateActiveTab)
 
     rect rgb(40,60,80)
